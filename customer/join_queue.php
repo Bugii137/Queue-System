@@ -50,6 +50,18 @@ if ($preselect_service) {
                        placeholder="e.g. 0712345678">
             </div>
 
+                <!-- Appointment Date -->
+                <div class="form-group">
+                    <label class="form-label">Appointment Date</label>
+                    <input type="date" name="appointment_date" class="form-control" min="<?= date('Y-m-d'); ?>" required>
+                </div>
+
+                <!-- Appointment Time -->
+                <div class="form-group">
+                    <label class="form-label">Appointment Time</label>
+                    <input type="time" name="appointment_time" class="form-control" required>
+                </div>
+
             <!-- Service -->
             <div class="form-group">
                 <label class="form-label">Select Service</label>

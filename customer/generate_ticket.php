@@ -9,6 +9,10 @@ $service_id = $_POST['service_id'];
 $name = trim($_POST['customer_name']);
 $phone = trim($_POST['customer_phone']);
 
+// New: Get appointment date and time from form
+$appointment_date = isset($_POST['appointment_date']) ? $_POST['appointment_date'] : null;
+$appointment_time = isset($_POST['appointment_time']) ? $_POST['appointment_time'] : null;
+
 // get service info
 $stmt = $pdo->prepare("SELECT * FROM services WHERE id = ?");
 $stmt->execute([$service_id]);
@@ -30,10 +34,18 @@ $ticket_number = generateTicketNumber($service['service_code']);
 $estimated_wait = calculateWaitTime($position, $service['average_time_minutes']);
 
 // insert ticket
+
 $stmt = $pdo->prepare("
     INSERT INTO queue_tickets
-    (ticket_number, service_id, customer_name, customer_phone, status, queue_position, estimated_wait_time)
-    VALUES (?, ?, ?, ?, 'waiting', ?, ?)
+    (ticket_number, service_id, customer_name, customer_phone, appointment_date, appointment_time, status, queue_position, estimated_wait_time)
+    VALUES (?, ?, ?, ?, ?, ?, 'waiting', ?, ?)
+");
+
+
+$stmt = $pdo->prepare("
+    INSERT INTO queue_tickets
+    (ticket_number, service_id, customer_name, customer_phone, appointment_date, appointment_time, status, queue_position, estimated_wait_time)
+    VALUES (?, ?, ?, ?, ?, ?, 'waiting', ?, ?)
 ");
 
 $stmt->execute([
@@ -41,6 +53,8 @@ $stmt->execute([
     $service_id,
     $name,
     $phone,
+    $appointment_date,
+    $appointment_time,
     $position,
     $estimated_wait
 ]);
@@ -60,6 +74,12 @@ $stmt->execute([
         <p><strong>Service:</strong> <?= htmlspecialchars($service['service_name']); ?></p>
         <p><strong>Your Position:</strong> #<?= $position; ?></p>
         <p><strong>Estimated Wait Time:</strong> <?= $estimated_wait; ?> minutes</p>
+            <?php if ($appointment_date): ?>
+                <p><strong>Date:</strong> <?= htmlspecialchars($appointment_date); ?></p>
+            <?php endif; ?>
+            <?php if ($appointment_time): ?>
+                <p><strong>Time:</strong> <?= htmlspecialchars($appointment_time); ?></p>
+            <?php endif; ?>
     </div>
 
     <div class="note-box">

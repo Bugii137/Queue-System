@@ -121,12 +121,14 @@ $current_serving = getCurrentServingTicket($pdo, $service_id);
             <table class="queue-table">
                 <thead>
                     <tr>
-                        <th>Ticket</th>
-                        <th>Name</th>
-                        <th>Status</th>
-                        <th>Position</th>
-                        <th>Wait Time</th>
-                        <th>Actions</th>
+                            <th>Ticket</th>
+                            <th>Name</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Status</th>
+                            <th>Position</th>
+                            <th>Wait Time</th>
+                            <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -134,12 +136,14 @@ $current_serving = getCurrentServingTicket($pdo, $service_id);
                     <?php foreach($tickets as $t): ?>
 
                     <tr>
-                        <td><strong><?= $t['ticket_number']; ?></strong></td>
-                        <td><?= htmlspecialchars($t['customer_name']); ?></td>
-                        <td><?= getStatusBadge($t['status']); ?></td>
-                        <td style="text-align: center; font-weight: 600;"><?= $t['queue_position']; ?></td>
-                        <td><?= $t['estimated_wait_time']; ?> min</td>
-                        <td>
+                            <td><strong><?= $t['ticket_number']; ?></strong></td>
+                            <td><?= htmlspecialchars($t['customer_name']); ?></td>
+                            <td><?= $t['appointment_date'] ? htmlspecialchars($t['appointment_date']) : '-'; ?></td>
+                            <td><?= $t['appointment_time'] ? htmlspecialchars($t['appointment_time']) : '-'; ?></td>
+                            <td><?= getStatusBadge($t['status']); ?></td>
+                            <td style="text-align: center; font-weight: 600;"><?= $t['queue_position']; ?></td>
+                            <td><?= $t['estimated_wait_time']; ?> min</td>
+                            <td>
                             <div class="queue-controls">
 
                                 <?php if ($t['status'] == 'waiting' && !$current_serving): ?>

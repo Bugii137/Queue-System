@@ -17,12 +17,15 @@
     </div>
 
     <div class="cta-group">
-        <a href="join_queue.php" class="btn btn-primary btn-main">
-            Get Ticket Now
-        </a>
-        <a href="display.php" class="btn btn-outline-primary btn-main" target="_blank">
-            View Queue Status
-        </a>
+            <a href="join_queue.php" class="btn btn-primary btn-main">
+                Get Ticket Now
+            </a>
+            <a href="display.php" class="btn btn-outline-primary btn-main" target="_blank">
+                View Queue Status
+            </a>
+            <a href="status.php" class="btn btn-outline-success btn-main" style="margin-top:10px;">
+                Check Ticket Status
+            </a>
     </div>
 
 </div>

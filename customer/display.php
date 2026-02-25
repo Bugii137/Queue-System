@@ -65,6 +65,9 @@ $upcoming = $stmt->fetchAll(PDO::FETCH_COLUMN);
     </div>
 
 </div>
+    <div class="cta-group" style="margin-top: 30px; text-align: center;">
+        <a href="index.php" class="btn btn-secondary btn-back-small">← Back</a>
+    </div>
 
 <!-- AUTO-REFRESH SCRIPT -->
 <script>

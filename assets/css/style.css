@@ -1,3 +1,13 @@
+/* ===== SMALL BACK BUTTON ===== */
+.btn-back-small {
+    min-width: 60px;
+    width: auto;
+    padding: 6px 10px;
+    font-size: 15px;
+    border-radius: 8px;
+    margin-bottom: 18px;
+    display: inline-block;
+}
 /* ===== GLOBAL STYLES ===== */
 
 * {
@@ -91,7 +101,6 @@ body {
 /* ===== BUTTONS ===== */
 
 .btn-main {
-    width: 100%;
     padding: 14px;
     font-weight: 600;
     border-radius: 10px;
