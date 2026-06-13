@@ -6,54 +6,31 @@ if (!isLoggedIn() || !isAdmin()) {
     redirect('login.php');
 }
 
-$ticket_id = $_GET['ticket_id'] ?? 0;
-$action = $_GET['action'] ?? '';
+$ticket_id  = (int) ($_GET['ticket_id'] ?? 0);
+$action     = $_GET['action'] ?? '';
+$service_id = (int) ($_GET['service_id'] ?? 0);
 
 if (!$ticket_id || !$action) {
     redirect('dashboard.php');
 }
 
 switch ($action) {
-
-    case 'call':
-        $status = 'called';
-        $field = 'called_at';
-        break;
-
     case 'serve':
-        $status = 'serving';
-        $field = 'served_at';
+    case 'call':       // treat 'call' same as 'serve'
+        callNextTicket($pdo, $service_id);
         break;
-
     case 'complete':
-        $status = 'completed';
-        $field = 'completed_at';
+        completeTicket($pdo, $ticket_id);
         break;
-
+    case 'skip':
+        skipTicket($pdo, $ticket_id);
+        break;
     case 'cancel':
-        $status = 'cancelled';
-        $field = null;
+        cancelTicket($pdo, $ticket_id);
         break;
-
     default:
         redirect('dashboard.php');
 }
 
-if ($field) {
-    $stmt = $pdo->prepare("
-        UPDATE queue_tickets
-        SET status = ?, $field = NOW()
-        WHERE id = ?
-    ");
-    $stmt->execute([$status, $ticket_id]);
-} else {
-    $stmt = $pdo->prepare("
-        UPDATE queue_tickets
-        SET status = ?
-        WHERE id = ?
-    ");
-    $stmt->execute([$status, $ticket_id]);
-}
-
-redirect($_SERVER['HTTP_REFERER']);
-?>
+$back = $_SERVER['HTTP_REFERER'] ?? "view_queue.php?service_id=$service_id";
+redirect($back);

@@ -5,43 +5,22 @@ include "../includes/auth.php";
 requireLogin();
 requireAdmin();
 
-$service_id = $_GET['service_id'] ?? 0;
+$service_id = (int) ($_GET['service_id'] ?? 0);
 
-/*
-1. Find first waiting ticket
-2. Change to serving
-*/
+if (!$service_id) {
+    redirect("dashboard.php");
+}
 
-$stmt = $pdo->prepare("
-    SELECT * FROM queue_tickets
-    WHERE service_id = ? AND status = 'waiting'
-    ORDER BY created_at ASC
-    LIMIT 1
-");
-$stmt->execute([$service_id]);
-
-$ticket = $stmt->fetch();
+// Uses callNextTicket() from functions.php:
+// - serves priority customers first
+// - logs to activity_log
+// - recalculates positions for remaining tickets
+$ticket = callNextTicket($pdo, $service_id);
 
 if ($ticket) {
-
-    // mark as serving
-    $update = $pdo->prepare("
-        UPDATE queue_tickets
-        SET status = 'serving',
-            served_at = NOW(),
-            served_by = ?
-        WHERE id = ?
-    ");
-
-    $update->execute([
-        $_SESSION['user_id'],
-        $ticket['id']
-    ]);
-
-    showAlert('success', 'Ticket ' . $ticket['ticket_number'] . ' is now serving');
-
+    showAlert('success', 'Now serving ticket: <strong>' . $ticket['ticket_number'] . '</strong>');
 } else {
-    showAlert('warning', 'No waiting tickets');
+    showAlert('warning', 'No waiting tickets in this queue.');
 }
 
 redirect("view_queue.php?service_id=$service_id");

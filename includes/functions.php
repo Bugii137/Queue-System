@@ -1,6 +1,6 @@
 <?php
 // ============================================
-// HELPER FUNCTIONS
+// UTILITIES
 // ============================================
 
 function redirect($url) {
@@ -17,220 +17,245 @@ function isAdmin() {
 }
 
 function showAlert($type, $message) {
-    $_SESSION['alert'] = [
-        'type' => $type,
-        'message' => $message
-    ];
+    $_SESSION['alert'] = ['type' => $type, 'message' => $message];
 }
 
 function displayAlert() {
     if (isset($_SESSION['alert'])) {
         $a = $_SESSION['alert'];
-
         echo "<div class='alert alert-{$a['type']} alert-dismissible fade show'>
                 {$a['message']}
                 <button class='btn-close' data-bs-dismiss='alert'></button>
               </div>";
-
         unset($_SESSION['alert']);
     }
 }
 
-function generateTicketNumber($service_code) {
-    $date = date('Ymd');
-    $random = rand(100, 999);
-    return TICKET_PREFIX . '-' . $service_code . '-' . $date . $random;
-}
-
-function calculateWaitTime($position, $avg_minutes) {
-    return $position * $avg_minutes;
-}
-
-// ============================================
-// QUEUE STATISTICS
-// ============================================
-
-function getQueueStats($pdo, $service_id = null) {
-    // when filtering by service, append as an AND clause (we already have WHERE in each query)
-    $where = $service_id ? "AND service_id = ?" : "";
-    
-    // Total waiting
-    $sql = "SELECT COUNT(*) FROM queue_tickets WHERE status = 'waiting' $where";
-    $stmt = $pdo->prepare($sql);
-    $params = $service_id ? [$service_id] : [];
-    $stmt->execute($params);
-    $waiting = $stmt->fetchColumn();
-    
-    // Currently serving
-    $sql = "SELECT COUNT(*) FROM queue_tickets WHERE status = 'serving' $where";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $serving = $stmt->fetchColumn();
-    
-    // Completed today
-    $sql = "SELECT COUNT(*) FROM queue_tickets WHERE status = 'completed' AND DATE(created_at) = CURDATE() $where";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $completed = $stmt->fetchColumn();
-    
-    return [
-        'waiting' => $waiting,
-        'serving' => $serving,
-        'completed' => $completed,
-        'total' => $waiting + $serving + $completed
-    ];
-}
-
-// ============================================
-// STATUS BADGE GENERATOR
-// ============================================
-
-function getStatusBadge($status) {
-    $badges = [
-        'waiting' => '<span class="badge-waiting">Waiting</span>',
-        'serving' => '<span class="badge-serving">Serving</span>',
-        'completed' => '<span class="badge-completed">Completed</span>'
-    ];
-    return $badges[$status] ?? '<span class="badge-waiting">Unknown</span>';
-}
-
-// ============================================
-// PRIORITY BADGE
-// ============================================
-
-function getPriorityBadge($priority) {
-    $badges = [
-        'normal' => '',
-        'priority' => '<span class="badge-priority">⭐ PRIORITY</span>'
-    ];
-    return $badges[$priority] ?? '';
-}
-
-// ============================================
-// GET CURRENT SERVING TICKET
-// ============================================
-
-function getCurrentServingTicket($pdo, $service_id = null) {
-    $where = "WHERE status = 'serving'";
-    if ($service_id) {
-        $where .= " AND service_id = ?";
-    }
-    
-    $sql = "SELECT * FROM queue_tickets $where ORDER BY served_at DESC LIMIT 1";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($service_id ? [$service_id] : []);
-    return $stmt->fetch();
-}
-
-// ============================================
-// GET NEXT WAITING TICKETS
-// ============================================
-
-function getNextTickets($pdo, $limit = 5, $service_id = null) {
-    $where = "WHERE status = 'waiting'";
-    if ($service_id) {
-        $where .= " AND service_id = ?";
-    }
-    
-    $sql = "SELECT ticket_number, service_id FROM queue_tickets $where ORDER BY created_at ASC LIMIT ?";
-    $stmt = $pdo->prepare($sql);
-    $params = $service_id ? [$service_id, $limit] : [$limit];
-    $stmt->execute($params);
-    return $stmt->fetchAll();
-}
-
-// ============================================
-// CALCULATE AVERAGE WAIT TIME
-// ============================================
-
-function getAverageWaitTime($pdo, $service_id) {
-    $sql = "SELECT AVG(estimated_wait_time) FROM queue_tickets 
-            WHERE service_id = ? AND status = 'completed' AND DATE(completed_at) = CURDATE()";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$service_id]);
-    $avg = $stmt->fetchColumn();
-    return round($avg) ?: 0;
-}
-
-// ============================================
-// GET PEAK HOUR DATA
-// ============================================
-
-function getPeakHourStats($pdo, $service_id = null) {
-    $where = "WHERE DATE(created_at) = CURDATE()";
-    if ($service_id) {
-        $where .= " AND service_id = ?";
-    }
-    
-    $sql = "SELECT HOUR(created_at) as hour, COUNT(*) as count 
-            FROM queue_tickets $where 
-            GROUP BY HOUR(created_at) 
-            ORDER BY hour ASC";
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($service_id ? [$service_id] : []);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-// ============================================
-// SKIP TICKET
-// ============================================
-
-function skipTicket($pdo, $ticket_id) {
-    // Removed `updated_at` to support schemas without that column
-    $sql = "UPDATE queue_tickets SET status = 'skipped' WHERE id = ?";
-    $stmt = $pdo->prepare($sql);
-    return $stmt->execute([$ticket_id]);
-}
-
-// ============================================
-// CALL NEXT TICKET
-// ============================================
-
-function callNextTicket($pdo, $service_id) {
-    // Get next waiting ticket
-    $sql = "SELECT * FROM queue_tickets 
-            WHERE service_id = ? AND status = 'waiting' 
-            ORDER BY created_at ASC LIMIT 1";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$service_id]);
-    $ticket = $stmt->fetch();
-    
-    if (!$ticket) return null;
-    
-    // Mark as serving
-    $sql = "UPDATE queue_tickets SET status = 'serving', served_at = NOW() WHERE id = ?";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$ticket['id']]);
-    
-    return $ticket;
-}
-
-// ============================================
-// COMPLETE TICKET
-// ============================================
-
-function completeTicket($pdo, $ticket_id) {
-    // Removed `updated_at` to support schemas without that column
-    $sql = "UPDATE queue_tickets 
-            SET status = 'completed', completed_at = NOW() 
-            WHERE id = ?";
-    $stmt = $pdo->prepare($sql);
-    return $stmt->execute([$ticket_id]);
-}
-
-// ============================================
-// FORMAT TIME
-// ============================================
-
 function formatTimeAgo($datetime) {
-    $time = strtotime($datetime);
-    $diff = time() - $time;
-    
-    if ($diff < 60) return 'just now';
-    if ($diff < 3600) return round($diff / 60) . 'm ago';
+    $diff = time() - strtotime($datetime);
+    if ($diff < 60)    return 'just now';
+    if ($diff < 3600)  return round($diff / 60) . 'm ago';
     if ($diff < 86400) return round($diff / 3600) . 'h ago';
     return round($diff / 86400) . 'd ago';
 }
 
-?>
+// ============================================
+// BADGES
+// ============================================
+
+function getStatusBadge($status) {
+    $map = [
+        'waiting'   => 'badge-waiting',
+        'serving'   => 'badge-serving',
+        'completed' => 'badge-completed',
+        'skipped'   => 'badge-skipped',
+        'cancelled' => 'badge-cancelled',
+    ];
+    $class = $map[$status] ?? 'badge-waiting';
+    return "<span class='{$class}'>" . ucfirst($status) . "</span>";
+}
+
+function getPriorityBadge($priority) {
+    return $priority ? "<span class='badge-priority'>⭐ PRIORITY</span>" : '';
+}
+
+// ============================================
+// TICKET GENERATION
+// ============================================
+
+function generateTicketNumber($pdo, $service_id) {
+    $today = date('Y-m-d');
+
+    // Upsert counter for today
+    $stmt = $pdo->prepare("
+        INSERT INTO daily_counters (service_id, counter_date, last_number)
+        VALUES (?, ?, 1)
+        ON DUPLICATE KEY UPDATE last_number = last_number + 1
+    ");
+    $stmt->execute([$service_id, $today]);
+
+    // Get the new number
+    $stmt = $pdo->prepare("
+        SELECT last_number FROM daily_counters
+        WHERE service_id = ? AND counter_date = ?
+    ");
+    $stmt->execute([$service_id, $today]);
+    $num = $stmt->fetchColumn();
+
+    return TICKET_PREFIX . '-' . str_pad($num, 4, '0', STR_PAD_LEFT); // e.g. Q-0001
+}
+
+function calculateWaitTime($position, $avg_minutes = ESTIMATED_TIME_PER_TICKET) {
+    return max(0, ($position - 1) * $avg_minutes);
+}
+
+// ============================================
+// QUEUE STATS
+// ============================================
+
+function getQueueStats($pdo, $service_id = null) {
+    $and = $service_id ? "AND service_id = " . (int)$service_id : "";
+
+    $row = $pdo->query("
+        SELECT
+            SUM(status = 'waiting')                                    AS waiting,
+            SUM(status = 'serving')                                    AS serving,
+            SUM(status = 'completed' AND DATE(created_at) = CURDATE()) AS completed
+        FROM queue_tickets
+        WHERE DATE(created_at) = CURDATE() $and
+    ")->fetch(PDO::FETCH_ASSOC);
+
+    $row['waiting']   = (int)$row['waiting'];
+    $row['serving']   = (int)$row['serving'];
+    $row['completed'] = (int)$row['completed'];
+    $row['total']     = $row['waiting'] + $row['serving'] + $row['completed'];
+    return $row;
+}
+
+// ============================================
+// QUEUE ACTIONS
+// ============================================
+
+function callNextTicket($pdo, $service_id) {
+    // Get next ticket: priority first, then oldest
+    $stmt = $pdo->prepare("
+        SELECT * FROM queue_tickets
+        WHERE service_id = ? AND status = 'waiting' AND DATE(created_at) = CURDATE()
+        ORDER BY priority DESC, queue_position ASC
+        LIMIT 1
+    ");
+    $stmt->execute([$service_id]);
+    $ticket = $stmt->fetch();
+
+    if (!$ticket) return null;
+
+    // Mark as serving
+    $pdo->prepare("
+        UPDATE queue_tickets
+        SET status = 'serving', called_at = NOW(), served_at = NOW(),
+            served_by = ?
+        WHERE id = ?
+    ")->execute([$_SESSION['user_id'] ?? null, $ticket['id']]);
+
+    // Log it
+    logActivity($pdo, $ticket['id'], 'serving');
+
+    // Recalculate positions for remaining waiting tickets
+    recalculatePositions($pdo, $service_id);
+
+    return $ticket;
+}
+
+function completeTicket($pdo, $ticket_id) {
+    $pdo->prepare("
+        UPDATE queue_tickets SET status = 'completed', completed_at = NOW()
+        WHERE id = ?
+    ")->execute([$ticket_id]);
+    logActivity($pdo, $ticket_id, 'completed');
+}
+
+function skipTicket($pdo, $ticket_id) {
+    $pdo->prepare("
+        UPDATE queue_tickets SET status = 'skipped' WHERE id = ?
+    ")->execute([$ticket_id]);
+    logActivity($pdo, $ticket_id, 'skipped');
+}
+
+function cancelTicket($pdo, $ticket_id) {
+    $pdo->prepare("
+        UPDATE queue_tickets SET status = 'cancelled' WHERE id = ?
+    ")->execute([$ticket_id]);
+    logActivity($pdo, $ticket_id, 'cancelled');
+}
+
+// ============================================
+// DISPLAY HELPERS
+// ============================================
+
+function getCurrentServingTicket($pdo, $service_id = null) {
+    $and = $service_id ? "AND qt.service_id = " . (int)$service_id : "";
+    return $pdo->query("
+        SELECT qt.*, s.service_name
+        FROM queue_tickets qt
+        JOIN services s ON s.id = qt.service_id
+        WHERE qt.status = 'serving' $and
+        ORDER BY qt.served_at DESC LIMIT 1
+    ")->fetch();
+}
+
+function getNextTickets($pdo, $limit = 5, $service_id = null) {
+    $and = $service_id ? "AND service_id = " . (int)$service_id : "";
+    $stmt = $pdo->prepare("
+        SELECT ticket_number, queue_position, estimated_wait_time
+        FROM queue_tickets
+        WHERE status = 'waiting' AND DATE(created_at) = CURDATE() $and
+        ORDER BY priority DESC, queue_position ASC
+        LIMIT ?
+    ");
+    $stmt->execute([$limit]);
+    return $stmt->fetchAll();
+}
+
+function getTicketByNumber($pdo, $ticket_number) {
+    $stmt = $pdo->prepare("
+        SELECT qt.*, s.service_name, s.avg_service_minutes
+        FROM queue_tickets qt
+        JOIN services s ON s.id = qt.service_id
+        WHERE qt.ticket_number = ?
+    ");
+    $stmt->execute([$ticket_number]);
+    return $stmt->fetch();
+}
+
+function getAverageWaitTime($pdo, $service_id) {
+    $stmt = $pdo->prepare("
+        SELECT AVG(TIMESTAMPDIFF(MINUTE, served_at, completed_at))
+        FROM queue_tickets
+        WHERE service_id = ? AND status = 'completed' AND DATE(completed_at) = CURDATE()
+    ");
+    $stmt->execute([$service_id]);
+    return round($stmt->fetchColumn()) ?: ESTIMATED_TIME_PER_TICKET;
+}
+
+function getPeakHourStats($pdo, $service_id = null) {
+    $and = $service_id ? "AND service_id = " . (int)$service_id : "";
+    return $pdo->query("
+        SELECT HOUR(created_at) AS hour, COUNT(*) AS count
+        FROM queue_tickets
+        WHERE DATE(created_at) = CURDATE() $and
+        GROUP BY HOUR(created_at)
+        ORDER BY hour ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// ============================================
+// INTERNAL HELPERS
+// ============================================
+
+function recalculatePositions($pdo, $service_id) {
+    $stmt = $pdo->prepare("
+        SELECT id FROM queue_tickets
+        WHERE service_id = ? AND status = 'waiting' AND DATE(created_at) = CURDATE()
+        ORDER BY priority DESC, id ASC
+    ");
+    $stmt->execute([$service_id]);
+    $tickets = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    $avg = $pdo->prepare("SELECT avg_service_minutes FROM services WHERE id = ?");
+    $avg->execute([$service_id]);
+    $mins = $avg->fetchColumn() ?: ESTIMATED_TIME_PER_TICKET;
+
+    $update = $pdo->prepare("
+        UPDATE queue_tickets SET queue_position = ?, estimated_wait_time = ? WHERE id = ?
+    ");
+    foreach ($tickets as $pos => $id) {
+        $update->execute([$pos + 1, $pos * $mins, $id]);
+    }
+}
+
+function logActivity($pdo, $ticket_id, $action) {
+    $pdo->prepare("
+        INSERT INTO activity_log (ticket_id, action, performed_by)
+        VALUES (?, ?, ?)
+    ")->execute([$ticket_id, $action, $_SESSION['user_id'] ?? null]);
+}

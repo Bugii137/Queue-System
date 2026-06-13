@@ -5,49 +5,43 @@ if ($_SERVER["REQUEST_METHOD"] != "POST") {
     redirect("index.php");
 }
 
-$service_id = $_POST['service_id'];
-$name = trim($_POST['customer_name']);
-$phone = trim($_POST['customer_phone']);
+// Sanitize inputs
+$service_id       = (int) $_POST['service_id'];
+$name             = trim($_POST['customer_name']);
+$phone            = trim($_POST['customer_phone'] ?? '');
+$appointment_date = $_POST['appointment_date'] ?? null;
+$appointment_time = $_POST['appointment_time'] ?? null;
 
-// New: Get appointment date and time from form
-$appointment_date = isset($_POST['appointment_date']) ? $_POST['appointment_date'] : null;
-$appointment_time = isset($_POST['appointment_time']) ? $_POST['appointment_time'] : null;
-
-// get service info
-$stmt = $pdo->prepare("SELECT * FROM services WHERE id = ?");
+// Validate service exists
+$stmt = $pdo->prepare("SELECT * FROM services WHERE id = ? AND is_active = 1");
 $stmt->execute([$service_id]);
 $service = $stmt->fetch();
 
 if (!$service) {
-    die("Invalid service selected");
+    die("Invalid service selected.");
 }
 
-// count waiting tickets
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM queue_tickets WHERE service_id = ? AND status = 'waiting'");
+// Generate ticket number using daily counter (e.g. Q-0001)
+$ticket_number = generateTicketNumber($pdo, $service_id);
+
+// Queue position = waiting tickets for this service today + 1
+$stmt = $pdo->prepare("
+    SELECT COUNT(*) FROM queue_tickets
+    WHERE service_id = ? AND status = 'waiting' AND DATE(created_at) = CURDATE()
+");
 $stmt->execute([$service_id]);
-$position = $stmt->fetchColumn() + 1;
+$position = (int) $stmt->fetchColumn() + 1;
 
-// generate ticket number
-$ticket_number = generateTicketNumber($service['service_code']);
+// Estimated wait based on position
+$estimated_wait = calculateWaitTime($position, $service['avg_service_minutes']);
 
-// calculate estimated wait
-$estimated_wait = calculateWaitTime($position, $service['average_time_minutes']);
-
-// insert ticket
-
+// Insert ticket (single INSERT)
 $stmt = $pdo->prepare("
     INSERT INTO queue_tickets
-    (ticket_number, service_id, customer_name, customer_phone, appointment_date, appointment_time, status, queue_position, estimated_wait_time)
+        (ticket_number, service_id, customer_name, customer_phone,
+         appointment_date, appointment_time, status, queue_position, estimated_wait_time)
     VALUES (?, ?, ?, ?, ?, ?, 'waiting', ?, ?)
 ");
-
-
-$stmt = $pdo->prepare("
-    INSERT INTO queue_tickets
-    (ticket_number, service_id, customer_name, customer_phone, appointment_date, appointment_time, status, queue_position, estimated_wait_time)
-    VALUES (?, ?, ?, ?, ?, ?, 'waiting', ?, ?)
-");
-
 $stmt->execute([
     $ticket_number,
     $service_id,
@@ -58,58 +52,48 @@ $stmt->execute([
     $position,
     $estimated_wait
 ]);
+
+include "../includes/header.php";
 ?>
 
-<?php include "../includes/header.php"; ?>
-
 <div class="container-box">
+    <h1 class="page-title">Ticket Issued ✓</h1>
 
-    <h1 class="page-title">Ticket Issued</h1>
-
-    <div class="ticket-number">
-        <?= $ticket_number; ?>
-    </div>
+    <div class="ticket-number"><?= htmlspecialchars($ticket_number); ?></div>
 
     <div class="ticket-info">
+        <p><strong>Name:</strong> <?= htmlspecialchars($name); ?></p>
         <p><strong>Service:</strong> <?= htmlspecialchars($service['service_name']); ?></p>
         <p><strong>Your Position:</strong> #<?= $position; ?></p>
-        <p><strong>Estimated Wait Time:</strong> <?= $estimated_wait; ?> minutes</p>
-            <?php if ($appointment_date): ?>
-                <p><strong>Date:</strong> <?= htmlspecialchars($appointment_date); ?></p>
-            <?php endif; ?>
-            <?php if ($appointment_time): ?>
-                <p><strong>Time:</strong> <?= htmlspecialchars($appointment_time); ?></p>
-            <?php endif; ?>
+        <p><strong>Estimated Wait:</strong> <?= $estimated_wait; ?> minutes</p>
+        <?php if ($appointment_date): ?>
+            <p><strong>Date:</strong> <?= htmlspecialchars($appointment_date); ?></p>
+        <?php endif; ?>
+        <?php if ($appointment_time): ?>
+            <p><strong>Time:</strong> <?= htmlspecialchars($appointment_time); ?></p>
+        <?php endif; ?>
     </div>
 
     <div class="note-box">
-        <p style="margin: 0;">
-            <strong>Note:</strong> Please keep your ticket number safe. Check the display screen for real-time updates.
-        </p>
+        <strong>Note:</strong> Keep your ticket number safe.
+        Check the display screen for real-time updates.
     </div>
 
     <div class="cta-group">
-        <button id="copyBtn" class="btn btn-action btn-outline-primary">Copy Ticket</button>
-        <button id="printBtn" class="btn btn-action btn-primary">Print</button>
+        <button id="copyBtn" class="btn btn-outline-primary btn-main">Copy Ticket</button>
+        <button id="printBtn" class="btn btn-primary btn-main">Print</button>
         <a href="index.php" class="btn btn-outline-secondary btn-main">Get Another Ticket</a>
-        <a href="display.php" class="btn btn-outline-primary btn-main" target="_blank">View Queue Status</a>
+        <a href="display.php" class="btn btn-outline-primary btn-main" target="_blank">View Queue Display</a>
     </div>
-
 </div>
 
 <script>
-    document.getElementById('copyBtn').addEventListener('click', function() {
-        const text = `<?= $ticket_number; ?>`;
-        navigator.clipboard.writeText(text).then(function() {
-            alert('Ticket copied to clipboard: ' + text);
-        }).catch(function() {
-            alert('Copy failed.');
-        });
-    });
-
-    document.getElementById('printBtn').addEventListener('click', function() {
-        window.print();
-    });
+document.getElementById('copyBtn').addEventListener('click', function () {
+    navigator.clipboard.writeText('<?= $ticket_number; ?>')
+        .then(() => alert('Copied: <?= $ticket_number; ?>'))
+        .catch(() => alert('Copy failed. Please copy manually.'));
+});
+document.getElementById('printBtn').addEventListener('click', () => window.print());
 </script>
 
 <?php include "../includes/footer.php"; ?>
