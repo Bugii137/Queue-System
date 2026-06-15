@@ -69,15 +69,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             <?php if ($ticket['status'] === 'completed'): ?>
                 <div class="alert alert-success" style="margin-top:15px;">
-                    ✓ Your ticket has been completed. Thank you!
+                    Your ticket has been completed. Thank you!
                 </div>
             <?php elseif ($ticket['status'] === 'serving'): ?>
                 <div class="alert alert-success" style="margin-top:15px;">
-                    🟢 Your ticket is currently being served. Please proceed to the counter.
+                    Your ticket is currently being served. Please proceed to the counter.
                 </div>
             <?php elseif ($ticket['status'] === 'skipped'): ?>
                 <div class="alert alert-warning" style="margin-top:15px;">
-                    ⚠ Your ticket was skipped. Please visit the counter or get a new ticket.
+                    Your ticket was skipped. Please visit the counter or get a new ticket.
                 </div>
             <?php endif; ?>
         </div>

@@ -10,12 +10,12 @@ $overall_stats = getQueueStats($pdo);
 
 // Service icons map
 $icons = [
-    'TLR' => '💵',
-    'ACC' => '🏦',
-    'LNS' => '📋',
-    'CST' => '🎧',
-    'FEX' => '💱',
-    'CRD' => '💳',
+    'TLR' => '',
+    'ACC' => '',
+    'LNS' => '',
+    'CST' => '',
+    'FEX' => '',
+    'CRD' => '',
 ];
 
 // Per-service waiting count
@@ -65,7 +65,7 @@ include "../includes/header.php";
         <h3 class="section-title">Manage Services</h3>
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px;">
             <?php foreach ($services as $s):
-                $icon    = $icons[$s['service_code']] ?? '🏢';
+                $icon    = $icons[$s['service_code']] ?? '';
                 $waiting = $svc_counts[$s['id']];
             ?>
             <a href="view_queue.php?service_id=<?= $s['id']; ?>" class="service-card"
@@ -92,15 +92,15 @@ include "../includes/header.php";
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px;">
             <a href="../customer/display.php" target="_blank"
                style="display:flex; align-items:center; gap:12px; padding:16px; background:#f0f6ff; border-radius:10px; text-decoration:none; color:#0d6efd; font-weight:600; border:1px solid #d0e4ff;">
-                <span style="font-size:24px;">📺</span> Display Screen
+                Display Screen
             </a>
             <a href="reports.php"
                style="display:flex; align-items:center; gap:12px; padding:16px; background:#f0fff4; border-radius:10px; text-decoration:none; color:#28a745; font-weight:600; border:1px solid #c3e6cb;">
-                <span style="font-size:24px;">📊</span> View Reports
+                View Reports
             </a>
             <a href="../customer/join_queue.php"
                style="display:flex; align-items:center; gap:12px; padding:16px; background:#fff8f0; border-radius:10px; text-decoration:none; color:#fd7e14; font-weight:600; border:1px solid #ffd8b1;">
-                <span style="font-size:24px;">🎫</span> Issue Ticket
+                Issue Ticket
             </a>
         </div>
     </div>

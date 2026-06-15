@@ -57,7 +57,7 @@ include "../includes/header.php";
 ?>
 
 <div class="container-box">
-    <h1 class="page-title">Ticket Issued ✓</h1>
+    <h1 class="page-title">Ticket Issued</h1>
 
     <div class="ticket-number"><?= htmlspecialchars($ticket_number); ?></div>
 

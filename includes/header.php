@@ -34,7 +34,7 @@
                 <a href="/Queue-System/customer/display.php" class="nav-link <?= (strpos($_SERVER['PHP_SELF'], 'display') !== false) ? 'active' : ''; ?>" target="_blank">Display Screen</a>
                 <a href="/Queue-System/admin/reports.php" class="nav-link <?= (strpos($_SERVER['PHP_SELF'], 'reports') !== false) ? 'active' : ''; ?>">Reports</a>
                 <div class="nav-divider"></div>
-                <span class="nav-user">👤 <?= htmlspecialchars($_SESSION['username'] ?? 'Admin'); ?></span>
+                <span class="nav-user"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin'); ?></span>
                 <a href="/Queue-System/logout.php" class="nav-btn nav-btn-danger">Logout</a>
 
             <?php else: ?>

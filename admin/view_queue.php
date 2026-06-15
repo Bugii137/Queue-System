@@ -73,7 +73,7 @@ include "../includes/header.php";
            class="btn btn-primary btn-main"
            style="max-width:280px; font-size:17px;"
            onclick="return confirm('Call the next waiting ticket?')">
-            📢 Call Next Ticket
+             Call Next Ticket
         </a>
     </div>
 
