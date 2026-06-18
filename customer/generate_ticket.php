@@ -1,6 +1,10 @@
 <?php
 include "../config.php";
 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 if ($_SERVER["REQUEST_METHOD"] != "POST") {
     redirect("index.php");
 }
@@ -21,37 +25,50 @@ if (!$service) {
     die("Invalid service selected.");
 }
 
-// Generate ticket number using daily counter (e.g. Q-0001)
-$ticket_number = generateTicketNumber($pdo, $service_id);
+try {
+    // Generate ticket number using daily counter (e.g. Q-0001)
+    $ticket_number = generateTicketNumber($pdo, $service_id);
 
-// Queue position = waiting tickets for this service today + 1
-$stmt = $pdo->prepare("
-    SELECT COUNT(*) FROM queue_tickets
-    WHERE service_id = ? AND status = 'waiting' AND DATE(created_at) = CURDATE()
-");
-$stmt->execute([$service_id]);
-$position = (int) $stmt->fetchColumn() + 1;
+    // Queue position = waiting tickets for this service today + 1
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(*) FROM queue_tickets
+         WHERE service_id = ? AND status = 'waiting' AND DATE(created_at) = CURDATE()"
+    );
+    $stmt->execute([$service_id]);
+    $position = (int) $stmt->fetchColumn() + 1;
 
-// Estimated wait based on position
-$estimated_wait = calculateWaitTime($position, $service['avg_service_minutes']);
+    // Estimated wait based on position
+    $estimated_wait = calculateWaitTime($position, $service['avg_service_minutes']);
 
-// Insert ticket (single INSERT)
-$stmt = $pdo->prepare("
-    INSERT INTO queue_tickets
-        (ticket_number, service_id, customer_name, customer_phone,
-         appointment_date, appointment_time, status, queue_position, estimated_wait_time)
-    VALUES (?, ?, ?, ?, ?, ?, 'waiting', ?, ?)
-");
-$stmt->execute([
-    $ticket_number,
-    $service_id,
-    $name,
-    $phone,
-    $appointment_date,
-    $appointment_time,
-    $position,
-    $estimated_wait
-]);
+    // Insert ticket (single INSERT)
+    $stmt = $pdo->prepare(
+        "INSERT INTO queue_tickets
+         (ticket_number, service_id, customer_name, customer_phone,
+          appointment_date, appointment_time, status, queue_position, estimated_wait_time)
+         VALUES (?, ?, ?, ?, ?, ?, 'waiting', ?, ?)"
+    );
+    $stmt->execute([
+        $ticket_number,
+        $service_id,
+        $name,
+        $phone,
+        $appointment_date,
+        $appointment_time,
+        $position,
+        $estimated_wait
+    ]);
+} catch (Exception $e) {
+    include "../includes/header.php";
+    echo '<div class="container-box" style="padding:40px; text-align:center;">
+            <h1 class="page-title">Ticket Error</h1>
+            <div class="alert alert-danger" style="margin:20px auto; max-width:600px;">
+                Could not generate a unique ticket. Please try again.
+            </div>
+            <a href="index.php" class="btn btn-primary btn-main">Back to ticket form</a>
+          </div>';
+    include "../includes/footer.php";
+    exit;
+}
 
 include "../includes/header.php";
 ?>

@@ -89,6 +89,75 @@ function calculateWaitTime($position, $avg_minutes = ESTIMATED_TIME_PER_TICKET) 
     return max(0, ($position - 1) * $avg_minutes);
 }
 
+function tableExists($pdo, $table) {
+    $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
+    $stmt->execute([$table]);
+    return (bool) $stmt->fetch();
+}
+
+function ticketNumberExists($pdo, $ticket_number) {
+    $stmt = $pdo->prepare("SELECT 1 FROM queue_tickets WHERE ticket_number = ? LIMIT 1");
+    $stmt->execute([$ticket_number]);
+    return (bool) $stmt->fetch();
+}
+
+function getMaxTicketSequence($pdo, $service_id) {
+    $prefix = TICKET_PREFIX . '-';
+    $stmt = $pdo->prepare(
+        "SELECT ticket_number FROM queue_tickets WHERE service_id = ? AND ticket_number LIKE ? ORDER BY id DESC LIMIT 1"
+    );
+    $stmt->execute([$service_id, $prefix . '%']);
+    $row = $stmt->fetch();
+    if (!$row || !preg_match('/' . preg_quote($prefix, '/') . '(\d{4})$/', $row['ticket_number'], $match)) {
+        return 0;
+    }
+    return (int) $match[1];
+}
+
+function generateTicketNumber($pdo, $service_id) {
+    $today = date('Y-m-d');
+    $prefix = TICKET_PREFIX . '-';
+    $counter = null;
+
+    if (tableExists($pdo, 'daily_counters')) {
+        try {
+            $stmt = $pdo->prepare(
+                "INSERT INTO daily_counters (service_id, counter_date, last_number)
+                 VALUES (?, ?, 1)
+                 ON DUPLICATE KEY UPDATE last_number = last_number + 1"
+            );
+            $stmt->execute([$service_id, $today]);
+
+            $stmt = $pdo->prepare(
+                "SELECT last_number FROM daily_counters WHERE service_id = ? AND counter_date = ?"
+            );
+            $stmt->execute([$service_id, $today]);
+            $counter = (int) $stmt->fetchColumn();
+        } catch (PDOException $e) {
+            $counter = null;
+        }
+    }
+
+    if ($counter === null) {
+        $counter = getMaxTicketSequence($pdo, $service_id) + 1;
+    }
+
+    $attempts = 0;
+    do {
+        if ($attempts >= 20) {
+            throw new Exception('Could not generate a unique ticket number.');
+        }
+
+        $ticket_number = $prefix . str_pad($counter, 4, '0', STR_PAD_LEFT);
+        if (!ticketNumberExists($pdo, $ticket_number)) {
+            return $ticket_number;
+        }
+
+        $counter++;
+        $attempts++;
+    } while (true);
+}
+
 // ============================================
 // QUEUE STATS
 // ============================================
@@ -116,6 +185,12 @@ function getQueueStats($pdo, $service_id = null) {
 // QUEUE ACTIONS
 // ============================================
 
+function hasColumn($pdo, $table, $column) {
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM `$table` LIKE ?");
+    $stmt->execute([$column]);
+    return (bool) $stmt->fetch();
+}
+
 function callNextTicket($pdo, $service_id) {
     // Get next ticket: priority first, then oldest
     $stmt = $pdo->prepare("
@@ -129,13 +204,29 @@ function callNextTicket($pdo, $service_id) {
 
     if (!$ticket) return null;
 
-    // Mark as serving
-    $pdo->prepare("
-        UPDATE queue_tickets
-        SET status = 'serving', called_at = NOW(), served_at = NOW(),
-            served_by = ?
-        WHERE id = ?
-    ")->execute([$_SESSION['user_id'] ?? null, $ticket['id']]);
+    $updateParts = [
+        "status = 'serving'"
+    ];
+    $updateParams = [];
+
+    if (hasColumn($pdo, 'queue_tickets', 'called_at')) {
+        $updateParts[] = 'called_at = NOW()';
+    }
+
+    if (hasColumn($pdo, 'queue_tickets', 'served_at')) {
+        $updateParts[] = 'served_at = NOW()';
+    }
+
+    if (hasColumn($pdo, 'queue_tickets', 'served_by')) {
+        $updateParts[] = 'served_by = ?';
+        $updateParams[] = $_SESSION['user_id'] ?? null;
+    }
+
+    $updateParams[] = $ticket['id'];
+    $updateSql = 'UPDATE queue_tickets SET ' . implode(', ', $updateParts) . ' WHERE id = ?';
+
+    $stmt = $pdo->prepare($updateSql);
+    $stmt->execute($updateParams);
 
     // Log it
     logActivity($pdo, $ticket['id'], 'serving');
